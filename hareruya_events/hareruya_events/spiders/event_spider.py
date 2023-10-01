@@ -33,24 +33,27 @@ class EventSpider(scrapy.Spider):
         year_month = now.strftime('%Y%m')
 
         for shop in Shop:
-            year_month = f'{year}{month:02d}'
             params = {
                 "shop": f"{shop.code}" ,
                 "date": year_month,
             }
             query = urlencode(params)
             # 例: https://www.hareruyamtg.com/ja/events/?shop=17&date=202310
-            url = urlunparse((self.http_schema, self.netloc, self.path, '', query, self.fragment))
+            url = urlunparse((self.http_schema, self.netloc, self.event_path, '', query, self.fragment))
             # 生成したURLでリクエストを作成
             yield scrapy.Request(url=url, callback=self.parse)
 
     def parse(self, response):
-        # 各イベントの詳細ページへのリンクを取得
-        event_links = response.xpath('XPATH_FOR_EVENT_LINKS').extract()
+         # 特定のクラスを持つa要素からURLを抽出
+        urls = response.xpath('//div[@class="eventCalendar__unregular__tournament__container"]/div/a/@href').getall()
+        
+        for url in urls:
+            # 絶対URLを取得
+            event_page_url = response.urljoin(url)
+            
+            # イベントページに対する新しいリクエストを作成
+            yield scrapy.Request(url=event_page_url, callback=self.parse_event)
 
-        for link in event_links:
-            # 各イベントの詳細ページにリクエストを送る
-            yield scrapy.Request(url=link, callback=self.parse_event_detail)
 
     def parse_event_detail(self, response):
         item = HareruyaEventItem()
